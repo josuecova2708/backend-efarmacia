@@ -1,3 +1,3 @@
 [phases.setup]
-# Instala los clientes de PostgreSQL (incluye pg_dump, pg_restore, psql)
-nixPkgs = ["postgresql"]
+# Node.js 22 + clientes PostgreSQL (pg_dump, pg_restore, psql)
+nixPkgs = ["nodejs_22", "postgresql"]
