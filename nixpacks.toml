@@ -1,3 +1,15 @@
 [phases.setup]
 # Node.js 22 + clientes PostgreSQL (pg_dump, pg_restore, psql)
 nixPkgs = ["nodejs_22", "postgresql"]
+
+[phases.install]
+cmds = ["npm install"]
+
+[phases.build]
+cmds = [
+  "npx prisma generate",
+  "npx nest build"
+]
+
+[start]
+cmd = "npx prisma migrate deploy && node dist/main"
