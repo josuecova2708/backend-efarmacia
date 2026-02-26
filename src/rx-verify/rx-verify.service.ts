@@ -6,7 +6,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service';
-import { nanoid } from 'nanoid';
+import { randomUUID } from 'crypto';
 
 type RxCheckResult = {
   ok: boolean;
@@ -173,7 +173,7 @@ Reglas:
     matched: Ticket['matched'];
     missing: Ticket['missing'];
   }): string {
-    const id = nanoid(21);
+    const id = randomUUID();
     const now = Date.now();
     RX_TICKETS.set(id, {
       userId: data.userId,
