@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import Anthropic from '@anthropic-ai/sdk';
 import { ReportesService } from './reportes.service';
 
 export interface CommandResult {
@@ -16,49 +16,33 @@ export interface CommandResult {
 
 @Injectable()
 export class VoiceAssistantService {
-  private genAI: GoogleGenerativeAI;
+  private anthropic: Anthropic;
 
   constructor(private readonly reportesService: ReportesService) {
-    this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+    this.anthropic = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY || '',
+    });
   }
 
   async processAudio(
-    audioBase64: string,
-    mimeType: string,
-    userId: number,
+    _audioBase64: string,
+    _mimeType: string,
+    _userId: number,
   ): Promise<CommandResult> {
-    try {
-      // Step 1: Transcribe audio using Gemini
-      const transcript = await this.transcribeAudio(audioBase64, mimeType);
-
-      // Step 2: Parse command from transcript
-      const parsedCommand = await this.parseCommandWithGemini(transcript);
-
-      // Step 3: Execute the command
-      if (parsedCommand.action === 'generar_reporte') {
-        const result = await this.handleReportGeneration(parsedCommand, userId);
-        return {
-          ...result,
-          transcript,
-        };
-      }
-
-      return {
-        transcript,
-        response: 'No pude entender el comando. Por favor intenta de nuevo.',
-      };
-    } catch (error) {
-      console.error('Error processing audio:', error);
-      throw error;
-    }
+    // Audio transcription is not supported by Claude.
+    // Use the text-based processCommand method instead.
+    return {
+      response:
+        'La transcripción de audio no está disponible en este momento. Por favor, usa el campo de texto para ingresar tu comando.',
+    };
   }
 
   async processCommand(command: string, userId: number): Promise<CommandResult> {
     try {
       console.log('[VoiceAssistant] Processing command:', command);
 
-      // Use Gemini to parse the command
-      const parsedCommand = await this.parseCommandWithGemini(command);
+      // Use Claude to parse the command
+      const parsedCommand = await this.parseCommandWithClaude(command);
       console.log('[VoiceAssistant] Parsed command:', parsedCommand);
 
       // Execute the corresponding action
@@ -81,37 +65,7 @@ export class VoiceAssistantService {
     }
   }
 
-  private async transcribeAudio(
-    audioBase64: string,
-    mimeType: string,
-  ): Promise<string> {
-    try {
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
-
-      const prompt = `Transcribe el siguiente audio en español. El audio contiene un comando para generar reportes en un sistema de farmacia.
-Devuelve SOLO el texto transcrito, sin explicaciones adicionales.`;
-
-      const result = await model.generateContent([
-        {
-          inlineData: {
-            data: audioBase64,
-            mimeType,
-          },
-        },
-        prompt,
-      ]);
-
-      const response = result.response;
-      const transcript = response.text().trim();
-
-      return transcript;
-    } catch (error) {
-      console.error('Error transcribing audio:', error);
-      throw new Error('Error al transcribir el audio');
-    }
-  }
-
-  private async parseCommandWithGemini(command: string): Promise<any> {
+  private async parseCommandWithClaude(command: string): Promise<any> {
     const systemPrompt = `Eres un asistente inteligente para el panel de administración de una farmacia.
 Tu tarea es analizar comandos de voz (que pueden tener errores de transcripción) y extraer la información necesaria para generar reportes.
 
@@ -153,24 +107,21 @@ Responde SOLO con un objeto JSON con la siguiente estructura:
     "fechaFin": null,
     "tipo": null
   }
-}
+}`;
 
-Ejemplos de comandos:
-- "genera reportes de alertas" -> {"action":"generar_reporte","reportType":"ALERTAS","format":"PDF","filters":{"fechaInicio":null,"fechaFin":null,"tipo":null}} // Sin fechas = TODOS los registros
-- "quiero reporte de bitacora" -> {"action":"generar_reporte","reportType":"BITACORA","format":"PDF","filters":{"fechaInicio":null,"fechaFin":null,"tipo":null}} // Sin fechas = TODOS
-- "exporta bitácora a excel" -> {"action":"generar_reporte","reportType":"BITACORA","format":"EXCEL","filters":{"fechaInicio":null,"fechaFin":null,"tipo":null}} // Sin fechas = TODOS
-- "dame reporte de facturas" -> {"action":"generar_reporte","reportType":"FACTURAS","format":"PDF","filters":{"fechaInicio":null,"fechaFin":null,"tipo":null}} // Sin fechas = TODOS
-- "genera alertas en PDF" -> {"action":"generar_reporte","reportType":"ALERTAS","format":"PDF","filters":{"fechaInicio":null,"fechaFin":null,"tipo":null}} // Sin fechas = TODOS
-- "reporte de clientes del último mes" -> {"action":"generar_reporte","reportType":"CLIENTES","format":"PDF","filters":{"fechaInicio":"último mes","fechaFin":null,"tipo":null}} // Usuario mencionó "último mes"
-- "exporta facturas de la última semana en excel" -> {"action":"generar_reporte","reportType":"FACTURAS","format":"EXCEL","filters":{"fechaInicio":"última semana","fechaFin":null,"tipo":null}} // Usuario mencionó "última semana"
-- "bitácora del mes pasado" -> {"action":"generar_reporte","reportType":"BITACORA","format":"PDF","filters":{"fechaInicio":"último mes","fechaFin":null,"tipo":null}} // "mes pasado" = "último mes"
+    const userMessage = `Comando del usuario (puede tener errores): "${command}"`;
 
-Comando del usuario (puede tener errores): "${command}"`;
+    const message = await this.anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 512,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userMessage }],
+    });
 
-    const model = this.genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
-    const result = await model.generateContent(systemPrompt);
-    const response = result.response;
-    const text = response.text();
+    const text = message.content
+      .filter((block) => block.type === 'text')
+      .map((block) => block.text)
+      .join('');
 
     // Extract JSON from response
     const jsonMatch = text.match(/\{[\s\S]*\}/);

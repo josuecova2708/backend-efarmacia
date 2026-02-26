@@ -24,14 +24,16 @@ enum ExportFormat {
 @Controller('backup')
 export class BackupController {
   private s3 = new S3Client({
-    region: process.env.AWS_REGION!,
+    region: process.env.AWS_REGION || 'us-east-1',
+    endpoint: process.env.S3_ENDPOINT || undefined,
+    forcePathStyle: !!process.env.S3_ENDPOINT,
     credentials: {
       accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
       secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
     },
   });
 
-  constructor(private readonly svc: BackupService) {}
+  constructor(private readonly svc: BackupService) { }
 
   /** GET /backup/export?format=sql|dump  -> descarga con nombre forzado */
   @Get('export')

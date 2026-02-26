@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service';
 import { nanoid } from 'nanoid';
 
@@ -32,8 +32,7 @@ const RX_TICKETS = new Map<string, Ticket>();
 
 @Injectable()
 export class RxVerifyService {
-  private genAI: GoogleGenerativeAI;
-  private model: any;
+  private anthropic: Anthropic;
 
   // === sinónimos genérico ↔ marca (extiende según tu catálogo) ===
   private brandSynonyms: Record<string, string[]> = {
@@ -48,10 +47,9 @@ export class RxVerifyService {
     private readonly cfg: ConfigService,
     private readonly prisma: PrismaService,
   ) {
-    const apiKey = this.cfg.get<string>('GEMINI_API_KEY');
-    if (!apiKey) throw new Error('GEMINI_API_KEY no configurada');
-    this.genAI = new GoogleGenerativeAI(apiKey);
-    this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const apiKey = this.cfg.get<string>('ANTHROPIC_API_KEY');
+    if (!apiKey) throw new Error('ANTHROPIC_API_KEY no configurada');
+    this.anthropic = new Anthropic({ apiKey });
   }
 
   // 1) Verificar si el carrito requiere receta
@@ -105,22 +103,35 @@ Reglas:
 - Si no ves nada, devuelve {"medicamentos":[],"ocr_text":""}.
 `.trim();
 
-    const parts = [
-      { text: prompt },
-      {
-        inline_data: {
-          mime_type: this.mimeFromDataUrl(imageBase64),
-          data: this.stripDataUrl(imageBase64),
-        },
-      } as any,
-    ];
+    const mimeType = this.mimeFromDataUrl(imageBase64);
+    const base64Data = this.stripDataUrl(imageBase64);
 
-    const res = await this.model.generateContent({
-      contents: [{ role: 'user', parts }],
-      generationConfig: { responseMimeType: 'application/json' },
+    // Claude vision: enviar imagen como content block
+    const message = await this.anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+                data: base64Data,
+              },
+            },
+            { type: 'text', text: prompt },
+          ],
+        },
+      ],
     });
 
-    const raw = res.response?.text?.() ?? '';
+    const raw = message.content
+      .filter((block) => block.type === 'text')
+      .map((block) => block.text)
+      .join('');
 
     // === Parseo robusto con fallback ===
     let ocrJson: any =

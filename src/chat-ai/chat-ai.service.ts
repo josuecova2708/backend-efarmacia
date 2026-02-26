@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import Anthropic from '@anthropic-ai/sdk'
 import { PrismaService } from '../prisma/prisma.service'
 
 export interface ProductoSimplificado {
@@ -14,19 +14,17 @@ export interface ProductoSimplificado {
 
 @Injectable()
 export class ChatAiService {
-  private genAI: GoogleGenerativeAI
-  private model: any
+  private anthropic: Anthropic
 
   constructor(
     private configService: ConfigService,
     private prisma: PrismaService,
   ) {
-    const apiKey = this.configService.get<string>('GEMINI_API_KEY')
+    const apiKey = this.configService.get<string>('ANTHROPIC_API_KEY')
     if (!apiKey) {
-      throw new Error('GEMINI_API_KEY no está configurada en las variables de entorno')
+      throw new Error('ANTHROPIC_API_KEY no está configurada en las variables de entorno')
     }
-    this.genAI = new GoogleGenerativeAI(apiKey)
-    this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    this.anthropic = new Anthropic({ apiKey })
   }
 
   async chat(userMessage: string): Promise<{ response: string; productos?: ProductoSimplificado[] }> {
@@ -50,8 +48,7 @@ export class ChatAiService {
         categoria: p.categoria.nombre,
       }))
 
-      // Crear el contexto con la información de productos
-      const contextoProduc = `Eres un asistente virtual de una farmacia. Tienes acceso al siguiente catálogo de productos:
+      const systemPrompt = `Eres un asistente virtual de una farmacia. Tienes acceso al siguiente catálogo de productos:
 
 ${JSON.stringify(productosSimplificados, null, 2)}
 
@@ -66,14 +63,20 @@ Tu trabajo es:
 Importante: Al recomendar productos, DEBES incluir el ID del producto en tu respuesta en el siguiente formato:
 [PRODUCTO:id:nombre]
 
-Por ejemplo: "Te recomiendo [PRODUCTO:5:Paracetamol 500mg] para aliviar tu dolor de cabeza."
+Por ejemplo: "Te recomiendo [PRODUCTO:5:Paracetamol 500mg] para aliviar tu dolor de cabeza."`
 
-Usuario: ${userMessage}`
+      // Enviar mensaje a Claude
+      const message = await this.anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userMessage }],
+      })
 
-      // Enviar mensaje a Gemini
-      const result = await this.model.generateContent(contextoProduc)
-      const response = result.response
-      const text = response.text()
+      const text = message.content
+        .filter((block) => block.type === 'text')
+        .map((block) => block.text)
+        .join('')
 
       // Extraer IDs de productos mencionados
       const productosRecomendados = this.extraerProductosRecomendados(text, productosSimplificados)

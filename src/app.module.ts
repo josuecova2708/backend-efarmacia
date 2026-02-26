@@ -22,7 +22,6 @@ import { BitacoraModule } from './bitacora/bitacora.module';
 import { PermissionsModule } from './permissions/permissions.module'
 import { PagosModule } from './pagos/pagos.module'
 import { BackupModule } from './backup/backup.module'
-import { verify } from 'crypto'
 import { RxVerifyModule } from './rx-verify/rx-verify.module'
 import { RecsModule } from './recs/recs.module'
 import { NotificacionesModule } from './notificaciones/notificaciones.module'
@@ -68,4 +67,4 @@ import { AnalyticsModule } from './analytics/analytics.module'
   ],
   controllers: [MeController],
 })
-export class AppModule {}
+export class AppModule { }

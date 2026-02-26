@@ -8,7 +8,9 @@ export class S3Service {
 
   constructor() {
     this.s3 = new S3Client({
-      region: process.env.AWS_REGION!,
+      region: process.env.AWS_REGION || 'us-east-1',
+      endpoint: process.env.S3_ENDPOINT || undefined,
+      forcePathStyle: !!process.env.S3_ENDPOINT,
       credentials: {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,

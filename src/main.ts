@@ -33,14 +33,14 @@ async function bootstrap() {
     }),
   )
 
+  const corsOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',')
+        .map((o) => o.trim())
+        .filter(Boolean)
+    : ['http://localhost:3000']
+
   app.enableCors({
-    origin: [
-      'http://localhost:3000',
-      'https://frontend-farmacia-iota.vercel.app',
-      'http://localhost:8081',
-      'http://192.168.26.3:8081',
-      'http://192.168.15.40:8081',
-    ],
+    origin: corsOrigins,
     credentials: true,
   })
 
