@@ -29,4 +29,4 @@ RUN npx tsc --project tsconfig.build.json --noEmitOnError false 2>&1 | tail -5 &
 
 EXPOSE 3001
 
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main"]
+CMD ["sh", "-c", "npx prisma migrate deploy && NODE_PATH=/app/dist node dist/src/main"]
