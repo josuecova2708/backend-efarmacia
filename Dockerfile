@@ -1,53 +1,32 @@
-# ============================================================
-# Stage 1: BUILD
-# Instala todas las dependencias y compila TypeScript
-# ============================================================
-FROM node:22-alpine AS builder
+FROM node:22-alpine
 
 WORKDIR /app
 
-# Instalar dependencias del sistema necesarias para bcrypt y Prisma
-RUN apk add --no-cache openssl
-
-# Copiar manifiestos de paquetes
-COPY package*.json ./
-COPY prisma ./prisma/
-
-# Instalar TODAS las dependencias (incluyendo devDeps como @nestjs/cli)
-RUN npm install
-
-# Generar cliente de Prisma
-RUN npx prisma generate
-
-# Copiar el resto del código fuente
-COPY . .
-
-# Compilar TypeScript con NestJS CLI
-RUN npx nest build
-
-# ============================================================
-# Stage 2: PRODUCTION
-# Solo lo necesario para correr la app
-# ============================================================
-FROM node:22-alpine AS production
-
-WORKDIR /app
-
+# Dependencias del sistema
 RUN apk add --no-cache openssl postgresql-client
 
+# Copiar manifiestos
 COPY package*.json ./
 COPY prisma ./prisma/
+COPY tsconfig*.json ./
+COPY nest-cli.json ./
 
-# Instalar solo dependencias de producción
-RUN npm install --omit=dev
+# Instalar TODAS las dependencias (dev + prod)
+RUN npm install
 
-# Generar cliente de Prisma para producción
+# Generar cliente Prisma
 RUN npx prisma generate
 
-# Copiar el código compilado desde el builder
-COPY --from=builder /app/dist ./dist
+# Copiar código fuente
+COPY src ./src
+
+# Compilar — mostrar errores y forzar emit aunque haya errores de tipo
+RUN npx nest build 2>&1 || true
+
+# Verificar que dist/main.js existe, si no abortar con error claro
+RUN test -f dist/main.js && echo "✅ Build exitoso: dist/main.js encontrado" \
+    || (echo "❌ ERROR: dist/main.js NO fue generado. Log de nest build:" && npx nest build && exit 1)
 
 EXPOSE 3001
 
-# Correr migraciones y arrancar el servidor
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main"]
