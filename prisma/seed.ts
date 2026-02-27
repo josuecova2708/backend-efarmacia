@@ -6,51 +6,38 @@ const prisma = new PrismaClient()
 async function main() {
     console.log('🌱 Seeding database...')
 
-    // 1) Create all permissions
+    // 1) Permission keys — exactly matching @Permissions() decorators in controllers
     const permissionKeys = [
-        'users.read',
-        'users.write',
-        'users.delete',
-        'roles.read',
-        'roles.write',
-        'roles.delete',
-        'productos.read',
-        'productos.write',
-        'productos.delete',
-        'categorias.read',
-        'categorias.write',
-        'categorias.delete',
-        'marcas.read',
-        'marcas.write',
-        'marcas.delete',
-        'unidades.read',
-        'unidades.write',
-        'unidades.delete',
-        'lotes.read',
-        'lotes.write',
-        'lotes.delete',
-        'clientes.read',
-        'clientes.write',
-        'clientes.delete',
-        'ordenes.read',
-        'ordenes.write',
-        'ordenes.delete',
-        'alertas.read',
-        'alertas.write',
-        'bitacora.read',
-        'backup.read',
-        'backup.write',
-        'pagos.read',
-        'pagos.write',
-        'proveedores.read',
-        'proveedores.write',
-        'proveedores.delete',
-        'ordenes-compra.read',
-        'ordenes-compra.write',
-        'ordenes-compra.delete',
+        // Users
+        'user.read',
+        'user.create',
+        'user.update',
+        'user.delete',
+        // Inventory (lotes)
+        'inv.read',
+        'inv.move',
+        // Suppliers (proveedores)
+        'supplier.read',
+        'supplier.manage',
+        // Orders (pedidos)
+        'order.read',
+        'order.manage',
+        // Purchase orders (ordenes-compra)
+        'purchase.read',
+        'purchase.manage',
+        // Alerts
+        'alert.read',
+        'alert.manage',
+        // Analytics
         'analytics.read',
+        'analytics.write',
+        // Suscripciones
         'suscripciones.read',
         'suscripciones.write',
+        // Backup & bitacora (no guard but add for completeness)
+        'backup.read',
+        'backup.write',
+        'bitacora.read',
     ]
 
     for (const key of permissionKeys) {
@@ -87,7 +74,7 @@ async function main() {
 
     const superUser = await prisma.user.upsert({
         where: { email: superEmail },
-        update: {},
+        update: { passwordHash },  // update password in case user exists
         create: {
             email: superEmail,
             passwordHash,
@@ -104,7 +91,7 @@ async function main() {
         create: { userId: superUser.id, roleId: adminRole.id },
     })
 
-    console.log(`✅ Superuser created:`)
+    console.log(`✅ Superuser ready:`)
     console.log(`   Email:    ${superEmail}`)
     console.log(`   Password: ${superPassword}`)
     console.log('')
