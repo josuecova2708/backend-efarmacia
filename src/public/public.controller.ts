@@ -6,7 +6,7 @@ import { Prisma } from '@prisma/client';
 
 @Controller('public')
 export class PublicController {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   @Post('register')
   async register(@Body() dto: PublicRegisterDto) {
@@ -51,8 +51,6 @@ export class PublicController {
     @Query('q') q?: string,
     @Query('limit') limit?: string,
   ) {
-    const limitNum = limit ? parseInt(limit) : 20;
-
     const where: any = { activo: true };
 
     if (categoria) {
@@ -69,12 +67,13 @@ export class PublicController {
 
     const productos = await this.prisma.producto.findMany({
       where,
-      orderBy: { creadoEn: 'desc' },
+      orderBy: { nombre: 'asc' },
       include: {
         marca: { select: { nombre: true } },
         categoria: { select: { nombre: true } },
       },
-      take: limitNum,
+      // Solo limitar si se pide explícitamente (home usa limit=8, catálogo no)
+      ...(limit ? { take: parseInt(limit) } : {}),
     });
 
     // Convertir Decimal a número para enviar al frontend 
